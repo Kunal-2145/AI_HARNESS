@@ -1,0 +1,29 @@
+[project]
+name = "ai-harness-2"
+version = "0.1.0"
+description = "A text-first AI coding harness with configurable workspace tools and MCP integrations."
+readme = "README.md"
+authors = [
+    { name = "kunal21-collab", email = "kunal200545@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "python-dotenv",
+    "langchain",
+    "langgraph",
+    "langchain-openai>=1.6.6",
+    "langchain-mcp-adapters>=0.3.2",
+    "fastmcp>=3.4.7",
+]
+
+[project.scripts]
+ai-harness-2 = "ai_harness_2:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
