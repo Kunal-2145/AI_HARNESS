@@ -11,6 +11,8 @@ from langchain_openai import ChatOpenAI
 from ai_harness_2.config.settings import MCPServerSettings
 from ai_harness_2.tools.registry import ToolSpec
 
+MAX_PLANNER_ATTEMPTS = 2
+
 
 @dataclass(frozen=True)
 class TaskPlan:
@@ -76,8 +78,27 @@ async def plan_request(
             )
         )
     )
-    response = await llm.ainvoke(messages)
-    data = _parse_json(response.content)
+    last_error: Exception | None = None
+    data: dict[str, Any] | None = None
+    for attempt in range(MAX_PLANNER_ATTEMPTS):
+        try:
+            response = await llm.ainvoke(messages)
+            data = _parse_json(response.content)
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 == MAX_PLANNER_ATTEMPTS:
+                break
+            messages.append(
+                SystemMessage(
+                    content=(
+                        "The previous planning response was invalid or unavailable. "
+                        "Retry once and return only the required JSON object."
+                    )
+                )
+            )
+    if data is None:
+        raise RuntimeError("Planner failed after retrying") from last_error
     kind = data.get("kind")
     if kind not in {"chat", "task", "unsupported"}:
         raise ValueError(f"Planner returned invalid kind: {kind!r}")

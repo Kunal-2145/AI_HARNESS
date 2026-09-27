@@ -9,6 +9,21 @@ from ai_harness_2.tools.registry import result_to_text, to_openai_tools
 from ai_harness_2.agents.tester import verify_python_tests
 
 logger = logging.getLogger(__name__)
+MAX_AGENT_ITERATIONS = 12
+MAX_MODEL_ATTEMPTS = 2
+
+
+async def _invoke_with_retry(model: Any, messages: list[Any]) -> Any:
+    last_error: Exception | None = None
+    for attempt in range(MAX_MODEL_ATTEMPTS):
+        try:
+            return await model.ainvoke(messages)
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 == MAX_MODEL_ATTEMPTS:
+                break
+            logger.warning("Execution model call failed; retrying: %s", exc)
+    raise RuntimeError("Execution model failed after retrying") from last_error
 
 
 async def run_coding_agent(
@@ -37,23 +52,28 @@ async def run_coding_agent(
     messages.append(HumanMessage(content=question))
     workspace_changed = False
 
-    while True:
-        response = await llm_with_tools.ainvoke(messages)
+    for _ in range(MAX_AGENT_ITERATIONS):
+        response = await _invoke_with_retry(llm_with_tools, messages)
         messages.append(response)
         if not response.tool_calls:
             answer = str(response.content)
             if workspace_changed:
                 terminal_tool = tools_by_name.get("terminal_execute")
                 if terminal_tool is None:
-                    verification = "Automatic verification could not run: terminal tool unavailable."
+                    verification_text = (
+                        "Automatic verification FAILED: terminal tool unavailable."
+                    )
                 else:
                     try:
                         verification = await verify_python_tests(
                             workspace_root or Path.cwd(), terminal_tool
                         )
+                        verification_text = verification.as_text()
                     except Exception as exc:
-                        verification = f"Automatic verification failed to start: {exc}"
-                return f"{answer}\n\n{verification}"
+                        verification_text = (
+                            f"Automatic verification FAILED to start: {exc}"
+                        )
+                return f"{answer}\n\n{verification_text}"
             return answer
 
         for tool_call in response.tool_calls:
@@ -78,3 +98,8 @@ async def run_coding_agent(
             messages.append(
                 ToolMessage(content=content, tool_call_id=tool_call["id"])
             )
+
+    return (
+        "Execution stopped after reaching the maximum tool-step limit. "
+        "The requested work is not verified as complete."
+    )

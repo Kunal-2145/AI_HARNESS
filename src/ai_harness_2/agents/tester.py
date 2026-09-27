@@ -1,4 +1,6 @@
 import os
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,23 @@ IGNORED_TEST_DIRECTORIES = {
     "dist",
     "node_modules",
 }
+
+
+@dataclass(frozen=True)
+class VerificationResult:
+    command: tuple[str, ...] | None
+    passed: bool | None
+    output: str
+
+    def as_text(self) -> str:
+        if self.command is None:
+            return f"Automatic verification: {self.output}"
+        status = "PASSED" if self.passed else "FAILED"
+        return (
+            f"Automatic verification: {status}\n"
+            f"Automatic verification command: {' '.join(self.command)}\n"
+            f"{self.output}"
+        )
 
 
 def find_python_test_command(workspace: Path) -> list[str] | None:
@@ -46,15 +65,17 @@ def find_python_test_command(workspace: Path) -> list[str] | None:
     return ["python", "-m", "pytest", "-q"]
 
 
-async def verify_python_tests(workspace: Path, terminal_tool: Any) -> str:
+async def verify_python_tests(
+    workspace: Path, terminal_tool: Any
+) -> VerificationResult:
     command = find_python_test_command(workspace)
     if command is None:
-        return "Automatic verification: no Python test files found; tests were not run."
+        return VerificationResult(None, None, "no Python test files found; tests were not run.")
     output = await terminal_tool.invoke({"command": command, "cwd": "."})
-    return (
-        f"Automatic verification command: {' '.join(command)}\n"
-        f"{result_to_text(output)}"
-    )
+    text = result_to_text(output)
+    exit_code = re.search(r"(?:^|\n)exit_code=(-?\d+)", text)
+    passed = bool(exit_code and exit_code.group(1) == "0")
+    return VerificationResult(tuple(command), passed, text)
 
 
 async def suggest_tests(llm: ChatOpenAI, change_description: str) -> str:

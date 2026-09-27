@@ -92,13 +92,24 @@ class ConversationStore:
         selected.reverse()
         return selected
 
-    def save_exchange(self, session_id: str, question: str, answer: str) -> None:
+    def save_exchange(
+        self,
+        session_id: str,
+        question: str,
+        answer: str,
+        execution_context: str | None = None,
+    ) -> None:
+        stored_answer = (
+            f"{execution_context}\n\n{answer}"
+            if execution_context
+            else answer
+        )
         with self._connect() as connection, connection:
             connection.executemany(
                 "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
                 (
                     (session_id, "user", question),
-                    (session_id, "assistant", answer),
+                    (session_id, "assistant", stored_answer),
                 ),
             )
             connection.execute(

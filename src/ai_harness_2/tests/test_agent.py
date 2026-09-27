@@ -123,6 +123,48 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Automatic verification command", answer)
         self.assertIn("2 passed", answer)
 
+    async def test_failed_verification_is_explicitly_reported(self) -> None:
+        write_tool = ToolSpec(
+            name="workspace_write_file",
+            description="Write a file",
+            parameters={"type": "object"},
+            invoke=AsyncMock(return_value="Wrote app.py (12 characters)."),
+        )
+        terminal_tool = ToolSpec(
+            name="terminal_execute",
+            description="Run a command",
+            parameters={"type": "object"},
+            invoke=AsyncMock(return_value="exit_code=1\n1 failed"),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / "tests").mkdir()
+            (workspace / "tests" / "test_app.py").write_text("", encoding="utf-8")
+            llm = FakeLlm()
+            llm.bound_model.responses = [
+                SimpleNamespace(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "workspace_write_file",
+                            "args": {"path": "app.py", "content": "broken"},
+                            "id": "write-1",
+                        }
+                    ],
+                ),
+                SimpleNamespace(content="Implemented the change.", tool_calls=[]),
+            ]
+            answer = await run_coding_agent(
+                llm=llm,
+                tools=[write_tool, terminal_tool],
+                question="Update the app",
+                plan=("Edit the app",),
+                workspace_root=workspace,
+            )
+
+        self.assertIn("Automatic verification: FAILED", answer)
+        self.assertIn("1 failed", answer)
+
 
 if __name__ == "__main__":
     unittest.main()

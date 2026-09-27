@@ -15,6 +15,25 @@ class FakeLlm:
 
 
 class PlannerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_first_response_is_retried(self) -> None:
+        class RetryingLlm:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def ainvoke(self, _messages):
+                self.calls += 1
+                if self.calls == 1:
+                    return SimpleNamespace(content="not json")
+                return SimpleNamespace(
+                    content='{"kind":"chat","steps":[],"server_names":[]}'
+                )
+
+        llm = RetryingLlm()
+        plan = await plan_request(llm, "hey", [], ())
+
+        self.assertEqual(plan.kind, "chat")
+        self.assertEqual(llm.calls, 2)
+
     async def test_chat_plan_does_not_select_mcp_even_if_model_includes_one(self) -> None:
         server = MCPServerSettings("github", "https://example.test", "GitHub", "token")
         plan = await plan_request(

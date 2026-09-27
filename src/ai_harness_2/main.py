@@ -30,6 +30,7 @@ from ai_harness_2.state.models import HarnessState
 async def run(
     question: str,
     history: list[dict[str, str]] | None = None,
+    state: HarnessState | None = None,
 ) -> str:
     settings = Settings.from_env()
     llm = settings.create_chat_model()
@@ -37,11 +38,11 @@ async def run(
         *create_filesystem_tools(settings.workspace_root),
         *create_terminal_tools(settings.workspace_root),
     ]
-    state: HarnessState = {"question": question}
+    request_state = state if state is not None else {"question": question}
     plan = await plan_request(
         llm, question, local_tools, settings.mcp_servers, history=history
     )
-    state.update(
+    request_state.update(
         {
             "kind": plan.kind,
             "plan": list(plan.steps),
@@ -61,26 +62,40 @@ async def run(
             messages.append(message_type(content=item["content"]))
         messages.append(HumanMessage(content=question))
         response = await llm.ainvoke(messages)
-        state["answer"] = str(response.content)
-        return state["answer"]
+        request_state["answer"] = str(response.content)
+        return request_state["answer"]
     if plan.kind == "unsupported":
-        state["answer"] = "\n".join(plan.steps)
-        return state["answer"]
+        request_state["answer"] = "\n".join(plan.steps)
+        return request_state["answer"]
 
     selected_servers = tuple(
         server for server in settings.mcp_servers if server.name in plan.server_names
     )
-    async with discover_mcp_tools(selected_servers) as mcp_tools:
-        available_tools = [*local_tools, *mcp_tools]
-        state["answer"] = await run_coding_agent(
-            llm=llm,
-            tools=available_tools,
-            question=question,
-            plan=plan.steps,
-            history=history,
-            workspace_root=settings.workspace_root,
+    try:
+        async with discover_mcp_tools(selected_servers) as mcp_tools:
+            available_tools = [*local_tools, *mcp_tools]
+            request_state["answer"] = await run_coding_agent(
+                llm=llm,
+                tools=available_tools,
+                question=question,
+                plan=plan.steps,
+                history=history,
+                workspace_root=settings.workspace_root,
+            )
+    except Exception as exc:
+        request_state["answer"] = (
+            "Task could not start because the selected tool service failed: "
+            f"{exc}. No task completion is being claimed."
         )
-    return state["answer"]
+    return request_state["answer"]
+
+
+def _execution_context(state: HarnessState) -> str:
+    plan = state.get("plan", [])
+    servers = state.get("selected_servers", [])
+    steps = "\n".join(f"- {step}" for step in plan) or "(none)"
+    selected = ", ".join(servers) or "none"
+    return f"Execution plan:\n{steps}\nSelected MCP servers: {selected}"
 
 
 async def chat() -> None:
@@ -109,8 +124,18 @@ async def chat() -> None:
             continue
         try:
             history = store.recent_messages(session_id)
-            answer = await run(question, history=history)
-            store.save_exchange(session_id, question, answer)
+            request_state: HarnessState = {"question": question}
+            answer = await run(question, history=history, state=request_state)
+            store.save_exchange(
+                session_id,
+                question,
+                answer,
+                execution_context=(
+                    _execution_context(request_state)
+                    if "plan" in request_state
+                    else None
+                ),
+            )
             print(f"Assistant> {answer}")
         except Exception as exc:
             print(f"Request failed: {exc}")

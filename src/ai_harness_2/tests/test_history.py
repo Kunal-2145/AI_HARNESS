@@ -52,6 +52,23 @@ class ConversationStoreTests(unittest.TestCase):
             )
             self.assertIn("earlier content truncated", messages[-1]["content"])
 
+    def test_execution_context_is_persisted_with_answer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            store = ConversationStore(root / "history.sqlite3")
+            session_id = store.create_session(root)
+            store.save_exchange(
+                session_id,
+                "Inspect the project",
+                "Done",
+                execution_context="Execution plan:\n- Inspect files",
+            )
+
+            messages = store.recent_messages(session_id)
+
+        self.assertIn("Execution plan:", messages[-1]["content"])
+        self.assertIn("Done", messages[-1]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

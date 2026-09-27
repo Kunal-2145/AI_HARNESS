@@ -33,13 +33,13 @@ make run
 
 `make test` runs the test suite. `make clean` removes generated caches and build artifacts without deleting the virtual environment.
 
-After the agent successfully writes a workspace file, it automatically runs detected Python tests through the terminal tool and includes the command and result in its response. For a locked `uv` project it uses `uv run --frozen`; if no Python test files are found, it reports that tests were not run.
+The agent loop has a 12-step application-level cap; provider context, output-token, and rate limits still apply.
 
 ## Session Context
 
-Conversation turns are stored in SQLite at `~/.ai-harness/history.sqlite3` and associated with the configured workspace. The next launch resumes that workspace's most recently used session. Enter `/new` to start a separate session. Up to 12 recent messages and 16,000 characters are included in model context; older messages remain stored but are not sent with every request. Set `AI_HARNESS_DB_PATH` to choose another database location. The database contains prompts and assistant responses, so keep it private and do not commit it.
+Conversation turns are stored in SQLite at `~/.ai-harness/history.sqlite3` and associated with the configured workspace. The next launch resumes that workspace's most recently used session. Enter `/new` to start a separate session. Up to 12 recent messages and 16,000 characters are included in model context; older messages remain stored but are not sent with every request. Set `AI_HARNESS_DB_PATH` to choose another database location. The database contains prompts, assistant responses, and selected execution plans, so keep it private and do not commit it.
 
-In unattended environments, tools execute without `y/N` prompts. Local file listing, reading, and writing are confined to `AI_HARNESS_WORKSPACE` and hide `.env`, `.git`, and virtual-environment paths; no special Desktop access is configured. Terminal commands use argument arrays without a shell, an executable allowlist, a workspace working directory, secret-filtered environment variables, and time/output limits. Note that a working-directory restriction is not an operating-system sandbox: a permitted interpreter can itself access other paths if its code does so. Git push/commit and other high-impact Git commands are blocked by default. The agent loop has no application-level step cap; provider context, output-token, and rate limits still apply.
+In unattended environments, tools execute without `y/N` prompts. Local file listing, reading, and writing are confined to `AI_HARNESS_WORKSPACE` and hide `.env`, `.git`, and virtual-environment paths; no special Desktop access is configured. Terminal commands use argument arrays without a shell, an executable allowlist, a workspace working directory, secret-filtered environment variables, and time/output limits. Note that a working-directory restriction is not an operating-system sandbox: a permitted interpreter can itself access other paths if its code does so. Git push/commit and other high-impact Git commands are blocked by default. The agent loop has a 12-step application-level cap; provider context, output-token, and rate limits still apply.
 
 ## Package Layout
 
