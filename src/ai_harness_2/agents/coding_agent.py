@@ -9,8 +9,8 @@ from ai_harness_2.tools.registry import result_to_text, to_openai_tools
 from ai_harness_2.agents.tester import verify_python_tests
 
 logger = logging.getLogger(__name__)
-MAX_AGENT_ITERATIONS = 12
-MAX_MODEL_ATTEMPTS = 2
+MAX_AGENT_ITERATIONS = 35
+MAX_MODEL_ATTEMPTS = 3
 
 
 async def _invoke_with_retry(model: Any, messages: list[Any]) -> Any:

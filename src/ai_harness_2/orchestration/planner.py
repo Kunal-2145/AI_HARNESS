@@ -98,7 +98,11 @@ async def plan_request(
                 )
             )
     if data is None:
-        raise RuntimeError("Planner failed after retrying") from last_error
+        detail = f"{type(last_error).__name__}: {last_error}" if last_error else "unknown error"
+        raise RuntimeError(
+            f"Planner failed after {MAX_PLANNER_ATTEMPTS} attempts ({detail}). "
+            "Check AI_API_KEY, LLM_BASE_URL, LLM_MODEL, and network access."
+        ) from last_error
     kind = data.get("kind")
     if kind not in {"chat", "task", "unsupported"}:
         raise ValueError(f"Planner returned invalid kind: {kind!r}")

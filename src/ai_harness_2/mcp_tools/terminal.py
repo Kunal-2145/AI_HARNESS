@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +21,8 @@ BLOCKED_GIT_COMMANDS = {
     "cherry-pick",
     "restore",
 }
-MAX_OUTPUT_CHARS = 20_000
-DEFAULT_TIMEOUT_SECONDS = 60
+MAX_OUTPUT_CHARS = 40_000
+DEFAULT_TIMEOUT_SECONDS = 120
 
 
 def create_terminal_tools(
@@ -49,6 +50,11 @@ def create_terminal_tools(
         if executable == "git" and len(command) > 2 and command[1] == "branch":
             if "-D" in command[2:] or "--delete" in command[2:]:
                 raise ValueError("Deleting Git branches is blocked by the terminal safety policy")
+
+        if executable in {"python", "python3"}:
+            command = [sys.executable, *command[1:]]
+        elif executable == "pytest":
+            command = [sys.executable, "-m", "pytest", *command[1:]]
 
         requested_cwd = arguments.get("cwd", ".")
         cwd = (root / requested_cwd).resolve()

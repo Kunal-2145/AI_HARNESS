@@ -6,8 +6,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-MAX_CONTEXT_MESSAGES = 12
-MAX_CONTEXT_CHARS = 16_000
+MAX_CONTEXT_MESSAGES = 24
+MAX_CONTEXT_CHARS = 32_000
 
 
 class ConversationStore:

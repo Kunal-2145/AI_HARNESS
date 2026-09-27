@@ -99,7 +99,12 @@ def _execution_context(state: HarnessState) -> str:
 
 
 async def chat() -> None:
-    settings = Settings.from_env()
+    try:
+        settings = Settings.from_env()
+    except RuntimeError as exc:
+        print(f"Configuration error: {exc}")
+        print("Set AI_API_KEY in the environment before running make run.")
+        return
     store = ConversationStore(settings.history_db_path)
     session_id, resumed = store.resume_or_create_session(settings.workspace_root)
     session_state = "Resumed" if resumed else "Started"
